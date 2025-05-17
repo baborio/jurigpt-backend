@@ -1,43 +1,41 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import openai
 import os
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/analyze", methods=["POST"])
-def analyze():
-    import openai
-import os
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
-
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+# Clave de API desde variables de entorno en Render
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
     data = request.get_json()
     consulta = data.get("consulta", "")
 
-    prompt = f"""Analiza si los hechos siguientes podrían constituir un delito según el Código Penal español. 
-    Indica el artículo aplicable, su interpretación y un ejemplo práctico similar. Hechos: {consulta}"""
+    if not consulta:
+        return jsonify({"respuesta": "Por favor, escribe una consulta válida."})
 
     try:
-        respuesta_openai = openai.ChatCompletion.create(
+        respuesta = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Eres un asistente jurídico experto en derecho penal español."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Eres un experto en Derecho Penal español. El usuario te describirá una situación y tú debes indicar si es delito, qué artículo del Código Penal se aplica, cómo se interpreta y un ejemplo práctico."
+                },
+                {
+                    "role": "user",
+                    "content": consulta
+                }
             ]
-        )
-        respuesta = respuesta_openai["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        respuesta = f"Error al procesar la consulta: {str(e)}"
+        ).choices[0].message.content
 
-    return jsonify({"respuesta": respuesta})
+        return jsonify({"respuesta": respuesta})
+
+    except Exception as e:
+        return jsonify({"respuesta": f"Ha ocurrido un error: {str(e)}"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
